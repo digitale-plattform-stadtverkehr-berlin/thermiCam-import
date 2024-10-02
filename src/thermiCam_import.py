@@ -11,7 +11,7 @@ from bearer_auth import BearerAuth
 # FROST URLs
 FROST_BASE_URL = os.environ.get('FROST_SERVER')
 FROST_THINGS_WITH_DATASTREAMS = FROST_BASE_URL+"/Things?$expand=Datastreams,Locations"
-FROST_OBSERVATIONS = FROST_BASE_URL+"/Datastreams(<DATASTREAM_ID>)/Observations?$filter=not phenomenonTime lt <STARTTIME>"
+FROST_OBSERVATIONS = FROST_BASE_URL+"/Datastreams(<DATASTREAM_ID>)/Observations?$filter=not phenomenonTime lt <STARTTIME>&$count=false"
 POST_URL = FROST_BASE_URL+"/$batch"
 
 FROST_USER = os.environ.get('FROST_USER')
@@ -24,7 +24,7 @@ CAMDATA_REALM = os.environ.get('CAMDATA_REALM')
 CAMDATA_CLIENT_ID = os.environ.get('CAMDATA_CLIENT_ID')
 CAMDATA_CLIENT_SECRET = os.environ.get('CAMDATA_CLIENT_SECRET')
 
-API_URL = "http://20.218.113.185/api/thermicam?fromDay=<FROM>>&toDay=<TO>&fromHour=0&toHour=23&fromMinute=0&toMinute=59"
+API_URL = "http://20.218.113.185/api/thermicam?fromDay=<FROM>>&toDay=<TO>&fromHour=0&toHour=23&fromMinute=0&toMinute=59&ids=<CAM_ID>"
 # Interval definitions
 INTERVAL_5_MIN = "5-Min"
 INTERVAL_1_HOUR = "1-Stunde"
@@ -51,9 +51,8 @@ UTC = pytz.utc
 TIMEOUT = 180
 
 mq_dummy_zone = {
-    "zoneId" : 0,
-    "lane" : "Messquerschnitt",
-    "lane_short": "MQ"
+    "zoneId" : "MQ",
+    "lane" : "Messquerschnitt"
 }
 
 mot_label = {
@@ -295,7 +294,6 @@ def create_thing(cam):
             "bezirk": cam['bezirk'],
             "ortsteil": cam['ortsteil'],
             "direction": cam['direction'],
-            "direction_short": cam['direction_short'],
             "lamppost": cam["lamppost"]
         },
         "Locations": [
@@ -365,11 +363,10 @@ def create_datastreamCount(cam, zone, mot, step_name_part, step_label):
         },
         "ObservedProperty": {"@iot.id": observedPropertyCount},
         "properties": {
-            "zoneId": zone["zoneId"],
             "layerName": "Anzahl_"+mot+"_Zaehlstelle_"+step_name_part,
             "periodLength": step_name_part,
             "periodLengthLabel": step_label,
-            "lane": zone["lane_short"],
+            "lane": zone["zoneId"],
             "laneLabel": zone["lane"],
             "vehicle": mot,
             "vehicleLabel": mot_label[mot],
@@ -390,11 +387,10 @@ def create_datastreamSpeed(cam, zone, mot, step_name_part, step_label):
         },
         "ObservedProperty": {"@iot.id": observedPropertySpeed},
         "properties": {
-            "zoneId": zone["zoneId"],
             "layerName": "Geschwindigkeit_"+mot_label[mot]+"_Zaehlstelle_"+step_name_part,
             "periodLength": step_name_part,
             "periodLengthLabel": step_label,
-            "lane": zone["lane_short"],
+            "lane": zone["zoneId"],
             "laneLabel": zone["lane"],
             "vehicle": mot,
             "vehicleLabel": mot_label[mot],
@@ -408,13 +404,13 @@ def update_thing(thing, cam):
     changed = False
 
     description = cam['position'] + ' (' + cam['pos_detail'] + ')  - Richtung: ' + cam['direction']
-    if thing['desciption'] != description:
+    if thing['description'] != description:
         updatedThing['description'] = description
         changed = True
     if thing['properties']['position'] != cam['position']:
         updatedThing['properties']['position'] = cam['position']
         changed = True
-    if thing['properties']['position_detail'] != cam['pos_detail']:
+    if 'position_detail' in thing['properties'] and thing['properties']['position_detail'] != cam['pos_detail']:
         updatedThing['properties']['position_detail'] = cam['pos_detail']
         changed = True
     if thing['properties']['plz'] != cam['plz']:
@@ -431,9 +427,6 @@ def update_thing(thing, cam):
         changed = True
     if thing['properties']['direction'] != cam['direction']:
         updatedThing['properties']['direction'] = cam['direction']
-        changed = True
-    if thing['properties']['direction_short'] != cam['direction_short']:
-        updatedThing['properties']['direction_short'] = cam['direction_short']
         changed = True
     if thing['properties']['lamppost'] != cam['lamppost']:
         updatedThing['properties']['lamppost'] = cam['lamppost']
@@ -520,11 +513,13 @@ def updateStatus():
 def import_observations(start, intervals):
     start = UTC.localize(start.replace(hour=0, minute=0, second = 0, microsecond = 0, tzinfo=None))
     end = TIMEZONE.localize(datetime.datetime.now())
-    data = load_api_data(start, end)
     observations = []
-    print(len(data))
     for thing in things:
+        print(thing["properties"]["cameraId"])
+        data = load_api_data(start, end, thing["properties"]["cameraId"])
+        print(len(data))
         for datastream in thing["Datastreams"]:
+            #print("Datastream: "+str(datastream['@iot.id']))
             if(datastream['properties']["periodLength"] in intervals):
                 observations += createAndUpdateObservations(thing, datastream, data, start, end)
             if len(observations) >= 1000:
@@ -540,14 +535,14 @@ def createAndUpdateObservations(thing, datastream, data, start, end):
 
 def createAndUpdateObservationsCount(thing, datastream, data, start, end):
     mot = datastream['properties']["vehicle"]
-    zone = datastream['properties']['zoneId']
+    zone = datastream['properties']['lane']
     interval = datastream['properties']["periodLength"]
     begin = startOfStep(start, interval)
     existingObservations = load_observations(datastream, begin)
 
     results = {}
     for dataset in data:
-        if thing["properties"]["cameraId"] == dataset["cameraId"] and (datastream["properties"]["zoneId"] == dataset["zoneId"] or datastream["properties"]["zoneId"]  == 0):
+        if thing["properties"]["cameraId"] == dataset["cameraId"] and (datastream["properties"]["lane"] == dataset["zoneName"] or datastream["properties"]["lane"]  == "MQ"):
             phenomenonTimeStart = startOfStep(UTC.localize(datetime.datetime.strptime(dataset["utc"], "%Y-%m-%dT%H:%M:%S.%fZ")), interval)
             phenomenonTimeEnd = getEndTime(phenomenonTimeStart, interval)
             if not phenomenonTimeStart.isoformat() in results:
@@ -571,14 +566,14 @@ def createAndUpdateObservationsCount(thing, datastream, data, start, end):
 
 def createAndUpdateObservationsSpeed(thing, datastream, data, start, end):
     mot = datastream['properties']["vehicle"]
-    zone = datastream['properties']['zoneId']
+    zone = datastream['properties']['lane']
     interval = datastream['properties']["periodLength"]
     begin = startOfStep(start, interval)
     existingObservations = load_observations(datastream, begin)
 
     results = {}
     for dataset in data:
-        if thing["properties"]["cameraId"] == dataset["cameraId"] and (datastream["properties"]["zoneId"] == dataset["zoneId"] or datastream["properties"]["zoneId"]  == 0):
+        if thing["properties"]["cameraId"] == dataset["cameraId"] and (datastream["properties"]["lane"] == dataset["zoneName"] or datastream["properties"]["lane"]  == "MQ"):
             speedValue = dataset[mot_speed[mot]]
             countValue = dataset[mot_count[mot]]
             if speedValue > -1:
@@ -639,8 +634,8 @@ def getEndTime(start, step):
         return start.replace(year=start.year+1)
     return None
 
-def load_api_data(start, end):
-    url = API_URL.replace('<FROM>', start.astimezone(UTC).strftime("%Y-%m-%d")).replace('<TO>', end.astimezone(UTC).strftime("%Y-%m-%d"))
+def load_api_data(start, end, cam = ""):
+    url = API_URL.replace('<FROM>', start.astimezone(UTC).strftime("%Y-%m-%d")).replace('<TO>', end.astimezone(UTC).strftime("%Y-%m-%d")).replace('<CAM_ID>', cam)
     results = []
     r = requests.get(url, auth=getToken(), timeout=TIMEOUT)
     if (r.status_code == 200):
@@ -734,6 +729,7 @@ init()
 
 #import_archive()
 #run_import()
+#run_import_long()
 
 print("Starting Scheduler")
 sched.start()
