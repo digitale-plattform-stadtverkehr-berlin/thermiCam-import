@@ -63,7 +63,8 @@ mot_label = {
     "van": "Lieferwagen",
     "smallTruck": "Kleinlaster",
     "largeTruck": "Großer LKW",
-    "bus": "Bus"
+    "bus": "Bus",
+    "kfz": "KFZ"
 }
 
 mot_count = {
@@ -74,7 +75,8 @@ mot_count = {
     "van": "qVan",
     "smallTruck": "qSmallTruck",
     "largeTruck": "qLargeTruck",
-    "bus": "qBus"
+    "bus": "qBus",
+    "kfz": "qKfz"
 }
 
 mot_speed = {
@@ -85,7 +87,8 @@ mot_speed = {
     "van": "vVan",
     "smallTruck": "vSmallTruck",
     "largeTruck": "vLargeTruck",
-    "bus": "vBus"
+    "bus": "vBus",
+    "kfz": "vKfz"
 }
 
 cams = None
@@ -267,6 +270,7 @@ def update_things(things, cams):
             create_thing(cam)
         else:
             update_thing(thing, cam)
+            create_missing_datastreams(thing, cam)
 
 def find_thing(things, cam):
     for thing in things:
@@ -280,6 +284,18 @@ def find_cam(cams, cameraId):
             return cam
     return None
 
+def find_datastream(thing, zone, mot, step_name_part, measurement):
+    for datastream in thing["Datastreams"]:
+        if datastream["properties"]["lane"] != zone["zoneId"]:
+            continue
+        if datastream["properties"]["vehicle"] != mot:
+            continue
+        if datastream["properties"]["periodLength"] != step_name_part:
+            continue
+        if datastream["properties"]["measurement"] != measurement:
+            continue
+        return datastream
+    return None
 
 def create_thing(cam):
     description = cam['position'] + ' (' + cam['pos_detail'] + ')  - Richtung: ' + cam['direction']
@@ -350,6 +366,74 @@ def create_datastreams(thing, cam):
             thing['Datastreams'].append(create_datastreamSpeed(cam, zone, mot, INTERVAL_1_WEEK, INTERVAL_1_WEEK_LABEL))
             thing['Datastreams'].append(create_datastreamSpeed(cam, zone, mot, INTERVAL_1_MONTH, INTERVAL_1_MONTH_LABEL))
             thing['Datastreams'].append(create_datastreamSpeed(cam, zone, mot, INTERVAL_1_YEAR, INTERVAL_1_YEAR_LABEL))
+
+def create_missing_datastreams(thing, cam):
+    datastreams = []
+    for mot in mot_label.keys():
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_5_MIN, "Anzahl") is None:
+            datastreams.append(create_datastreamCount(cam, mq_dummy_zone, mot, INTERVAL_5_MIN, INTERVAL_5_MIN_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_HOUR, "Anzahl") is None:
+            datastreams.append(create_datastreamCount(cam, mq_dummy_zone, mot, INTERVAL_1_HOUR, INTERVAL_1_HOUR_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_DAY, "Anzahl") is None:
+            datastreams.append(create_datastreamCount(cam, mq_dummy_zone, mot, INTERVAL_1_DAY, INTERVAL_1_DAY_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_WEEK, "Anzahl") is None:
+            datastreams.append(create_datastreamCount(cam, mq_dummy_zone, mot, INTERVAL_1_WEEK, INTERVAL_1_WEEK_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_MONTH, "Anzahl") is None:
+            datastreams.append(create_datastreamCount(cam, mq_dummy_zone, mot, INTERVAL_1_MONTH, INTERVAL_1_MONTH_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_YEAR, "Anzahl") is None:
+            datastreams.append(create_datastreamCount(cam, mq_dummy_zone, mot, INTERVAL_1_YEAR, INTERVAL_1_YEAR_LABEL))
+
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_5_MIN, "Geschwindigkeit") is None:
+            datastreams.append(create_datastreamSpeed(cam, mq_dummy_zone, mot, INTERVAL_5_MIN, INTERVAL_5_MIN_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_HOUR, "Geschwindigkeit") is None:
+            datastreams.append(create_datastreamSpeed(cam, mq_dummy_zone, mot, INTERVAL_1_HOUR, INTERVAL_1_HOUR_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_DAY, "Geschwindigkeit") is None:
+            datastreams.append(create_datastreamSpeed(cam, mq_dummy_zone, mot, INTERVAL_1_DAY, INTERVAL_1_DAY_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_WEEK, "Geschwindigkeit") is None:
+            datastreams.append(create_datastreamSpeed(cam, mq_dummy_zone, mot, INTERVAL_1_WEEK, INTERVAL_1_WEEK_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_MONTH, "Geschwindigkeit") is None:
+            datastreams.append(create_datastreamSpeed(cam, mq_dummy_zone, mot, INTERVAL_1_MONTH, INTERVAL_1_MONTH_LABEL))
+        if find_datastream(thing, mq_dummy_zone, mot, INTERVAL_1_YEAR, "Geschwindigkeit") is None:
+            datastreams.append(create_datastreamSpeed(cam, mq_dummy_zone, mot, INTERVAL_1_YEAR, INTERVAL_1_YEAR_LABEL))
+    for zone in cam['zones']:
+        for mot in mot_label.keys():
+            if find_datastream(thing, zone, mot, INTERVAL_5_MIN, "Anzahl") is None:
+                datastreams.append(create_datastreamCount(cam, zone, mot, INTERVAL_5_MIN, INTERVAL_5_MIN_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_HOUR, "Anzahl") is None:
+                datastreams.append(create_datastreamCount(cam, zone, mot, INTERVAL_1_HOUR, INTERVAL_1_HOUR_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_DAY, "Anzahl") is None:
+                datastreams.append(create_datastreamCount(cam, zone, mot, INTERVAL_1_DAY, INTERVAL_1_DAY_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_WEEK, "Anzahl") is None:
+                datastreams.append(create_datastreamCount(cam, zone, mot, INTERVAL_1_WEEK, INTERVAL_1_WEEK_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_MONTH, "Anzahl") is None:
+                datastreams.append(create_datastreamCount(cam, zone, mot, INTERVAL_1_MONTH, INTERVAL_1_MONTH_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_YEAR, "Anzahl") is None:
+                datastreams.append(create_datastreamCount(cam, zone, mot, INTERVAL_1_YEAR, INTERVAL_1_YEAR_LABEL))
+
+            if find_datastream(thing, zone, mot, INTERVAL_5_MIN, "Geschwindigkeit") is None:
+                datastreams.append(create_datastreamSpeed(cam, zone, mot, INTERVAL_5_MIN, INTERVAL_5_MIN_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_HOUR, "Geschwindigkeit") is None:
+                datastreams.append(create_datastreamSpeed(cam, zone, mot, INTERVAL_1_HOUR, INTERVAL_1_HOUR_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_DAY, "Geschwindigkeit") is None:
+                datastreams.append(create_datastreamSpeed(cam, zone, mot, INTERVAL_1_DAY, INTERVAL_1_DAY_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_WEEK, "Geschwindigkeit") is None:
+                datastreams.append(create_datastreamSpeed(cam, zone, mot, INTERVAL_1_WEEK, INTERVAL_1_WEEK_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_MONTH, "Geschwindigkeit") is None:
+                datastreams.append(create_datastreamSpeed(cam, zone, mot, INTERVAL_1_MONTH, INTERVAL_1_MONTH_LABEL))
+            if find_datastream(thing, zone, mot, INTERVAL_1_YEAR, "Geschwindigkeit") is None:
+                datastreams.append(create_datastreamSpeed(cam, zone, mot, INTERVAL_1_YEAR, INTERVAL_1_YEAR_LABEL))
+
+    if len(datastreams) > 0:
+        for datastream in datastreams:
+            datastream["Thing"] = {"@iot.id": thing["@iot.id"]}
+            #print(json.dumps(datastream, indent=4, sort_keys=True))
+
+            q_res = requests.post(FROST_BASE_URL + '/Datastreams', auth=frost_auth, json=datastream, timeout=TIMEOUT)
+            if (q_res.status_code != 201):
+                print("Could not create Datastream " + datastream['name'])
+                print(q_res.text)
+            else:
+                print("Created Datastream " + datastream['name'])
 
 def create_datastreamCount(cam, zone, mot, step_name_part, step_label):
     datastream =  {
@@ -522,9 +606,9 @@ def import_observations(start, intervals):
             #print("Datastream: "+str(datastream['@iot.id']))
             if(datastream['properties']["periodLength"] in intervals):
                 observations += createAndUpdateObservations(thing, datastream, data, start, end)
-            if len(observations) >= 1000:
-                post_observations(observations)
-                observations = []
+                if len(observations) >= 1000:
+                    post_observations(observations)
+                    observations = []
     post_observations(observations)
 
 def createAndUpdateObservations(thing, datastream, data, start, end):
@@ -707,11 +791,10 @@ def create_or_update_observation(result, datastream, observations):
             }
         }
 
-
-@sched.scheduled_job('cron',minute="*/5")
+@sched.scheduled_job('cron',minute="8")
 def run_import():
     init_things()
-    import_observations(datetime.datetime.now()-datetime.timedelta(hours=2), [INTERVAL_5_MIN, INTERVAL_1_HOUR])
+    import_observations(datetime.datetime.now()-datetime.timedelta(hours=4), [INTERVAL_5_MIN, INTERVAL_1_HOUR])
     import_observations(datetime.datetime.now()-datetime.timedelta(days=2), [INTERVAL_1_DAY])
     updateStatus()
 
