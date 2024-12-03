@@ -59,10 +59,10 @@ mot_label = {
     "ped": "Fußgänger",
     "bike": "Fahrrad",
     "Car": "PKW",
-    "motorbike": "Motorrad",
+    "motorbike": "Krad",
     "van": "Lieferwagen",
-    "smallTruck": "Kleinlaster",
-    "largeTruck": "Großer LKW",
+    "smallTruck": "LKW ohne Anhänger",
+    "largeTruck": "LKW mit Anhänger",
     "bus": "Bus",
     "kfz": "KFZ"
 }
@@ -532,7 +532,37 @@ def update_thing(thing, cam):
             print(q_res.text)
         else:
             print("Updated Thing "+thing['name']+'('+str(thing['@iot.id'])+')')
+
+    for datastream in thing["Datastreams"]:
+        update_datastream(datastream, thing, cam)
             # Update Datastreams
+
+def update_datastream(datastream, thing, cam):
+    properties = datastream['properties'];
+    updatedDatastream = {"properties": properties}
+    changed = False
+
+    name = properties["measurement"] + " " + mot_label[properties["vehicle"]] + " " + properties["periodLengthLabel"] + " -  " + properties["laneLabel"]
+    if datastream['name'] != name:
+        updatedDatastream['name'] = name
+        changed = True
+    description= properties["measurement"] + " " + mot_label[properties["vehicle"]] +" pro " + properties["periodLengthLabel"] +" für " + str(cam['position']) + " (" + str(cam['pos_detail']) + ") - " + properties["laneLabel"]
+    if datastream['description'] != description:
+        updatedDatastream['description'] = description
+        changed = True
+    if properties["vehicleLabel"] != mot_label[properties["vehicle"]]:
+        updatedDatastream["properties"]["vehicleLabel"] = mot_label[properties["vehicle"]]
+        changed = True
+
+    if changed:
+        #Update Datastream in Frost-Server
+        q_res = requests.patch(FROST_BASE_URL+'/Datastreams('+str(datastream['@iot.id'])+')', auth=frost_auth, json=updatedDatastream, timeout=TIMEOUT)
+        if (q_res.status_code != 200 and q_res.status_code != 201):
+            print(json.dumps(updatedDatastream, indent=4, sort_keys=True))
+            print("Could not update Datastream "+datastream['name']+'('+str(datastream['@iot.id'])+')')
+            print(q_res.text)
+        else:
+            print("Updated Datastream "+datastream['name']+'('+str(datastream['@iot.id'])+')')
 
 def load_observations(datastream, starttime):
     url = FROST_OBSERVATIONS.replace('<DATASTREAM_ID>', str(datastream['@iot.id'])).replace('<STARTTIME>', starttime.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S.%fZ"))
